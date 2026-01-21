@@ -1,14 +1,17 @@
-import mongoose, { Schema, Model } from 'mongoose';
+import mongoose, {
+  Schema,
+  Model,
+  HydratedDocument,
+} from 'mongoose';
 import { IProperty } from '../types/express';
 
 const propertySchema = new Schema<IProperty>(
   {
-    // Basic Information
     name: {
       type: String,
-      required: [true, 'Property name is required'],
+      required: true,
       trim: true,
-      maxlength: [200, 'Property name cannot exceed 200 characters'],
+      maxlength: 200,
     },
     slug: {
       type: String,
@@ -19,298 +22,151 @@ const propertySchema = new Schema<IProperty>(
     },
     description: {
       type: String,
-      required: [true, 'Property description is required'],
+      required: true,
       trim: true,
     },
     shortDescription: {
       type: String,
       trim: true,
-      maxlength: [300, 'Short description cannot exceed 300 characters'],
+      maxlength: 300,
     },
-    
-    // Property Type & Category
+
     propertyType: {
       type: String,
-      enum: ['apartment', 'villa', 'penthouse', 'townhouse', 'commercial', 'land', 'office'],
-      required: [true, 'Property type is required'],
+      enum: [
+        'apartment',
+        'villa',
+        'penthouse',
+        'townhouse',
+        'commercial',
+        'land',
+        'office',
+      ],
+      required: true,
     },
     category: {
       type: String,
       enum: ['sale', 'rent', 'both'],
-      required: [true, 'Category is required'],
       default: 'sale',
+      required: true,
     },
     status: {
       type: String,
       enum: ['available', 'sold', 'rented', 'pending', 'off-market'],
       default: 'available',
     },
-    
-    // Location
+
     location: {
-      address: {
-        type: String,
-        required: [true, 'Address is required'],
-        trim: true,
-      },
-      city: {
-        type: String,
-        required: [true, 'City is required'],
-        trim: true,
-      },
-      area: {
-        type: String,
-        required: [true, 'Area is required'],
-        trim: true,
-      },
-      emirate: {
-        type: String,
-        required: [true, 'Emirate is required'],
-        trim: true,
-      },
-      country: {
-        type: String,
-        default: 'United Arab Emirates',
-        trim: true,
-      },
-      zipCode: {
-        type: String,
-        trim: true,
-      },
+      address: { type: String, required: true },
+      city: { type: String, required: true },
+      area: { type: String, required: true },
+      emirate: { type: String, required: true },
+      country: { type: String, default: 'United Arab Emirates' },
+      zipCode: { type: String },
       coordinates: {
-        lat: {
-          type: Number,
-          min: -90,
-          max: 90,
-        },
-        lng: {
-          type: Number,
-          min: -180,
-          max: 180,
-        },
+        lat: { type: Number },
+        lng: { type: Number },
       },
-      landmarks: [{
-        type: String,
-        trim: true,
-      }],
+      landmarks: [{ type: String }],
     },
-    
-    // Pricing
+
     price: {
-      amount: {
-        type: Number,
-        required: [true, 'Price is required'],
-        min: [0, 'Price cannot be negative'],
-      },
-      currency: {
-        type: String,
-        default: 'AED',
-        uppercase: true,
-      },
-      pricePerSqft: {
-        type: Number,
-        min: [0, 'Price per sqft cannot be negative'],
-      },
-      originalPrice: {
-        type: Number,
-        min: [0, 'Original price cannot be negative'],
-      },
-      discount: {
-        type: Number,
-        min: [0, 'Discount cannot be negative'],
-        max: [100, 'Discount cannot exceed 100%'],
-      },
-      paymentPlan: {
-        type: String,
-        trim: true,
-      },
-      downPayment: {
-        type: Number,
-        min: [0, 'Down payment cannot be negative'],
-      },
-      monthlyPayment: {
-        type: Number,
-        min: [0, 'Monthly payment cannot be negative'],
-      },
+      amount: { type: Number, required: true },
+      currency: { type: String, default: 'AED' },
+      pricePerSqft: Number,
+      originalPrice: Number,
+      discount: Number,
+      paymentPlan: String,
+      downPayment: Number,
+      monthlyPayment: Number,
     },
-    
-    // Property Details
+
     details: {
-      bedrooms: {
-        type: Number,
-        required: [true, 'Number of bedrooms is required'],
-        min: [0, 'Bedrooms cannot be negative'],
-      },
-      bathrooms: {
-        type: Number,
-        required: [true, 'Number of bathrooms is required'],
-        min: [0, 'Bathrooms cannot be negative'],
-      },
-      parking: {
-        type: Number,
-        required: [true, 'Number of parking spaces is required'],
-        min: [0, 'Parking cannot be negative'],
-      },
+      bedrooms: { type: Number, required: true },
+      bathrooms: { type: Number, required: true },
+      parking: { type: Number, required: true },
       area: {
-        builtUp: {
-          type: Number,
-          required: [true, 'Built-up area is required'],
-          min: [0, 'Area cannot be negative'],
-        },
-        plot: {
-          type: Number,
-          min: [0, 'Plot area cannot be negative'],
-        },
-        balcony: {
-          type: Number,
-          min: [0, 'Balcony area cannot be negative'],
-        },
+        builtUp: { type: Number, required: true },
+        plot: Number,
+        balcony: Number,
       },
-      yearBuilt: {
-        type: Number,
-        min: [1800, 'Year built must be valid'],
-        max: [new Date().getFullYear() + 10, 'Year built cannot be in the future'],
-      },
-      floorNumber: {
-        type: Number,
-        min: [0, 'Floor number cannot be negative'],
-      },
-      totalFloors: {
-        type: Number,
-        min: [1, 'Total floors must be at least 1'],
-      },
+      yearBuilt: Number,
+      floorNumber: Number,
+      totalFloors: Number,
       furnishing: {
         type: String,
         enum: ['furnished', 'semi-furnished', 'unfurnished'],
       },
-      facing: {
-        type: String,
-        trim: true,
-      },
+      facing: String,
     },
-    
-    // Features & Amenities
-    features: [{
-      type: String,
-      trim: true,
-    }],
-    amenities: [{
-      type: String,
-      trim: true,
-    }],
-    
-    // Media
-    images: [{
-      type: String,
-      required: [true, 'At least one image is required'],
-    }],
-    videos: [{
-      type: String,
-    }],
-    virtualTour: {
-      type: String,
-      trim: true,
-    },
-    floorPlan: {
-      type: String,
-      trim: true,
-    },
-    
-    // Additional Information
-    developer: {
-      type: String,
-      trim: true,
-    },
-    handoverDate: {
-      type: Date,
-    },
+
+    features: [{ type: String }],
+    amenities: [{ type: String }],
+
+    images: [{ type: String, required: true }],
+    videos: [{ type: String }],
+    virtualTour: String,
+    floorPlan: String,
+
+    developer: String,
+    handoverDate: Date,
     ownershipType: {
       type: String,
       enum: ['freehold', 'leasehold'],
     },
-    titleDeed: {
-      type: Boolean,
-      default: false,
-    },
-    mortgageAvailable: {
-      type: Boolean,
-      default: false,
-    },
-    
-    // SEO & Marketing
-    metaTitle: {
-      type: String,
-      trim: true,
-      maxlength: [60, 'Meta title cannot exceed 60 characters'],
-    },
-    metaDescription: {
-      type: String,
-      trim: true,
-      maxlength: [160, 'Meta description cannot exceed 160 characters'],
-    },
-    featured: {
-      type: Boolean,
-      default: false,
-    },
-    featuredUntil: {
-      type: Date,
-    },
-    
-    // Status & Management
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
-    isPublished: {
-      type: Boolean,
-      default: false,
-    },
-    views: {
-      type: Number,
-      default: 0,
-    },
-    likes: {
-      type: Number,
-      default: 0,
-    },
-    
-    // Relations
+    titleDeed: { type: Boolean, default: false },
+    mortgageAvailable: { type: Boolean, default: false },
+
+    metaTitle: { type: String, maxlength: 60 },
+    metaDescription: { type: String, maxlength: 160 },
+    featured: { type: Boolean, default: false },
+    featuredUntil: Date,
+
+    isActive: { type: Boolean, default: true },
+    isPublished: { type: Boolean, default: false },
+    views: { type: Number, default: 0 },
+    likes: { type: Number, default: 0 },
+
+    // ✅ FIXED ObjectId typing
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-    } as any,
+    },
     updatedBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-    } as any,
+    },
   },
-  {
-    timestamps: true,
+  { timestamps: true }
+);
+
+// Pre-save hook (Mongoose 9+ compatible - async without next callback)
+propertySchema.pre(
+  'save',
+  async function (this: HydratedDocument<IProperty>) {
+    if (this.isModified('name') && !this.slug) {
+      this.slug = this.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+    }
   }
 );
 
-// Generate slug from name before saving
-// Using type assertion to work around Mongoose TypeScript strict typing
-(propertySchema as any).pre('save', async function (this: IProperty, next?: (err?: Error) => void) {
-  if (this.isModified('name') && !this.slug) {
-    this.slug = this.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '');
-  }
-  if (next && typeof next === 'function') {
-    next();
-  }
+propertySchema.index({
+  name: 'text',
+  description: 'text',
+  'location.address': 'text',
 });
-
-// Index for search optimization
-propertySchema.index({ name: 'text', description: 'text', 'location.address': 'text' });
 propertySchema.index({ propertyType: 1, category: 1, status: 1 });
 propertySchema.index({ 'price.amount': 1 });
 propertySchema.index({ featured: 1, isPublished: 1, isActive: 1 });
 propertySchema.index({ slug: 1 });
 
-const Property: Model<IProperty> = mongoose.model<IProperty>('Property', propertySchema);
+const Property: Model<IProperty> = mongoose.model<IProperty>(
+  'Property',
+  propertySchema
+);
 
 export default Property;

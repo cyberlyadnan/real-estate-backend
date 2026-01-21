@@ -1,6 +1,24 @@
-import mongoose, { Schema, Model } from 'mongoose';
+import mongoose, { Schema, Model, HydratedDocument,Document, Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { IUser } from '../types/express';
+
+// IUser interface with all fields and instance methods
+// Note: In Mongoose 9+, interfaces don't need to extend Document
+// The Model<IUser> typing handles the Document methods
+export interface IUser extends Document{
+  _id: Types.ObjectId;
+  name: string;
+  email: string;
+  password: string;
+  role: 'user' | 'admin';
+  refreshToken?: string;
+  refreshTokenExpiry?: Date;
+  isActive: boolean;
+  lastLogin?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  // Instance method defined in schema.methods
+  comparePassword(candidatePassword: string): Promise<boolean>;
+}
 
 const userSchema = new Schema<IUser>(
   {
@@ -54,38 +72,29 @@ const userSchema = new Schema<IUser>(
 );
 
 // Hash password before saving
-// Using type assertion to work around Mongoose TypeScript strict typing
-(userSchema as any).pre('save', async function (this: IUser, next?: (err?: Error) => void) {
+// Mongoose 9+ uses async functions without next() callback
+// Errors are thrown instead of passed to next()
+userSchema.pre('save', async function (this: HydratedDocument<IUser>) {
   // Only hash the password if it has been modified (or is new)
   if (!this.isModified('password')) {
-    if (next && typeof next === 'function') {
-      return next();
-    }
     return;
   }
 
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    if (next && typeof next === 'function') {
-      next();
-    }
   } catch (error) {
-    if (next && typeof next === 'function') {
-      next(error as Error);
-    } else {
-      throw error;
-    }
+    throw error;
   }
 });
 
-// Compare password method
+// Compare password method - properly typed to match IUser interface
 userSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Remove sensitive data when converting to JSON
-userSchema.methods.toJSON = function () {
+userSchema.methods.toJSON = function (this: IUser) {
   const obj = this.toObject();
   delete obj.password;
   delete obj.refreshToken;

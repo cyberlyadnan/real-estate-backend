@@ -430,7 +430,9 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const userId = req.user._id;
+    // req.user is guaranteed to exist after the check above
+    // Convert ObjectId to string for MongoDB queries
+    const userId = req.user._id.toString();
 
     // Clear refresh token from database
     await User.findByIdAndUpdate(userId, {
@@ -491,7 +493,9 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const user = await User.findById(req.user._id);
+    // req.user is guaranteed to exist after the check above
+    // Convert ObjectId to string for MongoDB queries
+    const user = await User.findById(req.user._id.toString());
 
     if (!user) {
       res.status(404).json({

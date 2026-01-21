@@ -1,16 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
-import { IUser } from '../types/express';
-
-// Extend Express Request to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: IUser;
-    }
-  }
-}
+// Express Request type is augmented in express.d.ts
 
 // Verify JWT token
 export const authenticate = async (
