@@ -1,12 +1,23 @@
 import { Request, Response } from 'express';
 import Query from '../models/Query';
+import Lead from '../models/Lead';
+import LeadFollowUp from '../models/LeadFollowUp';
 import { Types } from 'mongoose';
-import { sendQueryConfirmationEmail } from '../utils/email';
+import {
+  sendQueryConfirmationEmail,
+  sendNewLeadAlertToAdmins,
+  sendNewEnquiryAlertToAdmins,
+} from '../utils/email';
+import { normalizePhone, isValidPhone } from '../utils/phone';
+import { getAdminEmails, createNotificationsForAdmins } from '../utils/adminAlerts';
 
-/** Create query (public - no auth). */
+/** Default hours until first follow-up for new leads from property detail. */
+const DEFAULT_FIRST_FOLLOW_UP_HOURS = 24;
+
+/** Create query (public - no auth). When source is lead_form and propertySlug/propertyId provided, also creates a Lead and first follow-up. */
 export const createQuery = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, phone, message, subject, source, interestedProperty } = req.body;
+    const { name, email, phone, message, subject, source, interestedProperty, propertySlug, propertyId, propertyName } = req.body;
     if (!name || !email || !phone || !message) {
       res.status(400).json({
         success: false,
@@ -14,15 +25,92 @@ export const createQuery = async (req: Request, res: Response): Promise<void> =>
       });
       return;
     }
+    const phoneNormalized = normalizePhone(phone);
+    if (!isValidPhone(phoneNormalized)) {
+      res.status(400).json({
+        success: false,
+        message: 'Please provide a valid phone number (at least 10 digits, with country code).',
+      });
+      return;
+    }
+    const sourceVal = ['contact_page', 'lead_form', 'other'].includes(source) ? source : 'contact_page';
+    const interestedProp = interestedProperty ? String(interestedProperty).trim() : (propertyName ? String(propertyName).trim() : undefined);
+    const slug = propertySlug ? String(propertySlug).trim() : undefined;
+    const propId = propertyId && Types.ObjectId.isValid(propertyId) ? new Types.ObjectId(propertyId) : undefined;
+    const propName = propertyName ? String(propertyName).trim() : interestedProp;
+
     const query = await Query.create({
       name: String(name).trim(),
       email: String(email).trim().toLowerCase(),
-      phone: String(phone).trim(),
+      phone: phoneNormalized,
       message: String(message).trim(),
       subject: subject ? String(subject).trim() : undefined,
-      source: ['contact_page', 'lead_form', 'other'].includes(source) ? source : 'contact_page',
-      interestedProperty: interestedProperty ? String(interestedProperty).trim() : undefined,
+      source: sourceVal,
+      interestedProperty: interestedProp,
     });
+
+    let lead: { _id: Types.ObjectId; name: string; email: string; phone: string; message: string; propertyName?: string } | null = null;
+    if (sourceVal === 'lead_form' && (slug || propId || propName)) {
+      const nextFollowUp = new Date();
+      nextFollowUp.setHours(nextFollowUp.getHours() + DEFAULT_FIRST_FOLLOW_UP_HOURS);
+      lead = await Lead.create({
+        name: query.name,
+        email: query.email,
+        phone: phoneNormalized,
+        message: query.message,
+        source: slug || propId ? 'property_detail' : 'lead_form',
+        propertyId: propId,
+        propertySlug: slug,
+        propertyName: propName || interestedProp,
+        queryId: query._id,
+        nextFollowUpAt: nextFollowUp,
+      });
+      await LeadFollowUp.create({
+        leadId: lead._id,
+        dueAt: nextFollowUp,
+        type: 'call',
+        title: 'First follow-up – new lead',
+        notes: `Lead from property: ${propName || interestedProp || 'N/A'}. Contact to discuss interest.`,
+      });
+    }
+
+    // Admin alerts: email + in-app notification
+    getAdminEmails()
+      .then((adminEmails) => {
+        if (lead) {
+          sendNewLeadAlertToAdmins(adminEmails, {
+            leadName: query.name,
+            leadEmail: query.email,
+            leadPhone: phoneNormalized,
+            propertyName: propName || undefined,
+            message: query.message,
+            leadId: String(lead._id),
+            queryId: String(query._id),
+          });
+        } else {
+          sendNewEnquiryAlertToAdmins(adminEmails, {
+            name: query.name,
+            email: query.email,
+            phone: phoneNormalized,
+            message: query.message,
+            source: sourceVal,
+            interestedProperty: interestedProp,
+            queryId: String(query._id),
+          });
+        }
+      })
+      .catch((err) => console.error('[Alerts] getAdminEmails failed', err));
+    createNotificationsForAdmins({
+      title: lead ? 'New lead received' : 'New enquiry received',
+      message: lead
+        ? `${query.name} – ${propName || 'Property'}`
+        : `${query.name} – ${query.email}`,
+      type: lead ? 'new_lead' : 'new_enquiry',
+      data: lead
+        ? { leadId: String(lead._id), queryId: String(query._id) }
+        : { queryId: String(query._id) },
+    }).catch((err) => console.error('[Alerts] createNotificationsForAdmins failed', err));
+
     await sendQueryConfirmationEmail({
       recipientName: query.name,
       recipientEmail: query.email,

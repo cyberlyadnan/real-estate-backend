@@ -10,6 +10,8 @@ import propertyRoutes from './routes/propertyRoutes';
 import publicPropertyRoutes from './routes/publicPropertyRoutes';
 import publicQueryRoutes from './routes/publicQueryRoutes';
 import queryRoutes from './routes/queryRoutes';
+import leadRoutes from './routes/leadRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 
 // Load environment variables
 dotenv.config();
@@ -60,6 +62,8 @@ app.use('/api/properties', propertyRoutes);
 app.use('/api/public/properties', publicPropertyRoutes);
 app.use('/api/public/queries', publicQueryRoutes);
 app.use('/api/queries', queryRoutes);
+app.use('/api/leads', leadRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
