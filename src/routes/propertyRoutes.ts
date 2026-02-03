@@ -3,6 +3,7 @@ import {
   createProperty,
   getProperties,
   getProperty,
+  getPropertyBySlugAdmin,
   updateProperty,
   deleteProperty,
   deletePropertyImage,
@@ -24,7 +25,10 @@ router.post('/', uploadMultiple, createProperty);
 // Get all properties
 router.get('/', getProperties);
 
-// Get single property
+// Get by slug (admin only; no published filter – for previewing drafts)
+router.get('/by-slug/:slug', getPropertyBySlugAdmin);
+
+// Get single property by id
 router.get('/:id', getProperty);
 
 // Update property (with file upload)

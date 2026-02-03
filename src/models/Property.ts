@@ -103,6 +103,19 @@ const propertySchema = new Schema<IProperty>(
     features: [{ type: String }],
     amenities: [{ type: String }],
 
+    locationInfo: [{
+      title: { type: String, required: true },
+      value: { type: String, required: true },
+      description: { type: String, required: true },
+      icon: { type: String, enum: ['navigation', 'clock', 'car', 'mapPin'], default: 'mapPin' },
+    }],
+    investmentHighlights: [{
+      title: { type: String, required: true },
+      value: { type: String, required: true },
+      description: { type: String, required: true },
+      color: { type: String, default: 'from-primary to-primary-light' },
+    }],
+
     images: [{ type: String, required: true }],
     videos: [{ type: String }],
     virtualTour: String,

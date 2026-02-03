@@ -155,6 +155,33 @@ The project uses strict TypeScript settings for type safety:
 | JWT_REFRESH_EXPIRES_IN | Refresh token expiry | 7d |
 | FRONTEND_URL | Frontend URL for CORS | http://localhost:3000 |
 | API_URL | API base URL | http://localhost:5000 |
+| APP_NAME | App name used in emails | Dubai Estates |
+| EMAIL_FROM | Sender address for emails | - |
+| SMTP_HOST | SMTP server host | - |
+| SMTP_PORT | SMTP port (587 for TLS) | 587 |
+| SMTP_SECURE | Use SSL (true for 465) | false |
+| SMTP_USER | SMTP username | - |
+| SMTP_PASS | SMTP password (use App Password for Gmail) | - |
+
+## Email Configuration
+
+When a query is submitted (contact form or lead form), a confirmation email is sent to the customer if SMTP is configured. Add these to your `.env`:
+
+```env
+APP_NAME=Dubai Estates
+EMAIL_FROM="Dubai Estates <noreply@yourdomain.com>"
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+```
+
+**Gmail**: Use an [App Password](https://support.google.com/accounts/answer/185833) (not your regular password). Enable 2FA first.
+
+**Other providers**: Use your SMTP host (e.g. `smtp.sendgrid.net` for SendGrid, `smtp.mailtrap.io` for Mailtrap testing).
+
+If email vars are not set, queries are still saved but no email is sent.
 
 ## Development
 

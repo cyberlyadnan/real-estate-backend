@@ -81,6 +81,22 @@ export interface IProperty {
   features: string[];
   amenities: string[];
 
+  // Prime Location (detail page)
+  locationInfo?: Array<{
+    title: string;
+    value: string;
+    description: string;
+    icon: 'navigation' | 'clock' | 'car' | 'mapPin';
+  }>;
+
+  // Investment Highlights (detail page)
+  investmentHighlights?: Array<{
+    title: string;
+    value: string;
+    description: string;
+    color: string;
+  }>;
+
   // Media
   images: string[];
   videos?: string[];

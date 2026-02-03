@@ -97,9 +97,9 @@ export const register = async (req: Request<{}, {}, RegisterBody>, res: Response
     const accessToken = generateAccessToken(user._id.toString());
     const refreshToken = generateRefreshToken(user._id.toString());
 
-    // Save refresh token to database
+    // Save refresh token to database (align with JWT refresh expiry, e.g. 14d)
     const refreshTokenExpiry = new Date();
-    refreshTokenExpiry.setDate(refreshTokenExpiry.getDate() + 7); // 7 days
+    refreshTokenExpiry.setDate(refreshTokenExpiry.getDate() + 14);
 
     await User.findByIdAndUpdate(user._id, {
       refreshToken,
@@ -245,9 +245,9 @@ export const login = async (req: Request<{}, {}, LoginBody>, res: Response): Pro
     const accessToken = generateAccessToken(user._id.toString());
     const refreshToken = generateRefreshToken(user._id.toString());
 
-    // Save refresh token to database
+    // Save refresh token to database (align with JWT refresh expiry, e.g. 14d)
     const refreshTokenExpiry = new Date();
-    refreshTokenExpiry.setDate(refreshTokenExpiry.getDate() + 7); // 7 days
+    refreshTokenExpiry.setDate(refreshTokenExpiry.getDate() + 14);
 
     await User.findByIdAndUpdate(user._id, {
       refreshToken,

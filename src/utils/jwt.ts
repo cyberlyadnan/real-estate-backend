@@ -14,7 +14,7 @@ export const generateAccessToken = (userId: string): string => {
   const payload = { userId };
 
   const options: SignOptions = {
-    expiresIn: (process.env.JWT_EXPIRES_IN ?? "15m") as SignOptions["expiresIn"],
+    expiresIn: (process.env.JWT_EXPIRES_IN ?? "3d") as SignOptions["expiresIn"],
   };
 
   return jwt.sign(payload, secret, options);
@@ -37,7 +37,7 @@ export const generateRefreshToken = (userId: string): string => {
   };
 
   const options: SignOptions = {
-    expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN ?? "7d") as SignOptions["expiresIn"],
+    expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN ?? "14d") as SignOptions["expiresIn"],
   };
 
   return jwt.sign(payload, secret, options);

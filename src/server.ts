@@ -7,6 +7,9 @@ import swaggerSpec from './config/swagger';
 import connectDB from './config/database';
 import authRoutes from './routes/authRoutes';
 import propertyRoutes from './routes/propertyRoutes';
+import publicPropertyRoutes from './routes/publicPropertyRoutes';
+import publicQueryRoutes from './routes/publicQueryRoutes';
+import queryRoutes from './routes/queryRoutes';
 
 // Load environment variables
 dotenv.config();
@@ -54,6 +57,9 @@ app.get('/health', (_req: Request, res: Response) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/properties', propertyRoutes);
+app.use('/api/public/properties', publicPropertyRoutes);
+app.use('/api/public/queries', publicQueryRoutes);
+app.use('/api/queries', queryRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
