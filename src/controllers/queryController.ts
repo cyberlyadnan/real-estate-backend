@@ -33,7 +33,7 @@ export const createQuery = async (req: Request, res: Response): Promise<void> =>
       });
       return;
     }
-    const sourceVal = ['contact_page', 'lead_form', 'other'].includes(source) ? source : 'contact_page';
+    const sourceVal = ['contact_page', 'lead_form', 'property_detail', 'mobile_app', 'other'].includes(source) ? source : 'contact_page';
     const interestedProp = interestedProperty ? String(interestedProperty).trim() : (propertyName ? String(propertyName).trim() : undefined);
     const slug = propertySlug ? String(propertySlug).trim() : undefined;
     const propId = propertyId && Types.ObjectId.isValid(propertyId) ? new Types.ObjectId(propertyId) : undefined;
@@ -49,8 +49,9 @@ export const createQuery = async (req: Request, res: Response): Promise<void> =>
       interestedProperty: interestedProp,
     });
 
+    // Create Lead when enquiry is from property detail (has property context) – it's a lead, not just a query
     let lead: { _id: Types.ObjectId; name: string; email: string; phone: string; message: string; propertyName?: string } | null = null;
-    if (sourceVal === 'lead_form' && (slug || propId || propName)) {
+    if (slug || propId || propName) {
       const nextFollowUp = new Date();
       nextFollowUp.setHours(nextFollowUp.getHours() + DEFAULT_FIRST_FOLLOW_UP_HOURS);
       lead = await Lead.create({
@@ -58,7 +59,7 @@ export const createQuery = async (req: Request, res: Response): Promise<void> =>
         email: query.email,
         phone: phoneNormalized,
         message: query.message,
-        source: slug || propId ? 'property_detail' : 'lead_form',
+        source: sourceVal === 'mobile_app' ? 'mobile_app' : (slug || propId ? 'property_detail' : 'lead_form'),
         propertyId: propId,
         propertySlug: slug,
         propertyName: propName || interestedProp,
@@ -145,7 +146,7 @@ export const getQueries = async (req: Request, res: Response): Promise<void> => 
     if (status && ['new', 'in_progress', 'resolved', 'closed'].includes(status)) {
       filter.status = status;
     }
-    if (source && ['contact_page', 'lead_form', 'other'].includes(source)) {
+    if (source && ['contact_page', 'lead_form', 'property_detail', 'mobile_app', 'other'].includes(source)) {
       filter.source = source;
     }
     if (search) {

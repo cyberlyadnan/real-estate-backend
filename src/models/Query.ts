@@ -27,7 +27,7 @@ const querySchema = new Schema<IQuery>(
     subject: { type: String, trim: true },
     source: {
       type: String,
-      enum: ['contact_page', 'lead_form', 'other'],
+      enum: ['contact_page', 'lead_form', 'property_detail', 'mobile_app', 'other'],
       default: 'contact_page',
     },
     interestedProperty: { type: String, trim: true },

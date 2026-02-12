@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { subDays } from 'date-fns';
 import Lead from '../models/Lead';
 import LeadFollowUp from '../models/LeadFollowUp';
 import { Types } from 'mongoose';
@@ -6,6 +7,40 @@ import { sendFollowUpReminderEmail, sendFollowUpDueAlertToAdmins } from '../util
 import { getAdminEmails, createNotificationsForAdmins } from '../utils/adminAlerts';
 import type { LeadStatus, LeadPriority } from '../models/Lead';
 import type { FollowUpType } from '../models/LeadFollowUp';
+
+/** Create lead (admin). */
+export const createLead = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { name, email, phone, message, source, propertyId, propertySlug, propertyName, budget, budgetMax, preferredArea, address } = req.body;
+    if (!name || !email || !phone) {
+      res.status(400).json({ success: false, message: 'Name, email and phone are required' });
+      return;
+    }
+    const sourceVal = ['contact_page', 'lead_form', 'property_detail', 'mobile_app', 'whatsapp', 'other'].includes(source) ? source : 'lead_form';
+    const lead = await Lead.create({
+      name: String(name).trim(),
+      email: String(email).trim().toLowerCase(),
+      phone: String(phone).trim(),
+      message: message ? String(message).trim() : 'Manual lead from admin',
+      source: sourceVal,
+      propertyId: propertyId && Types.ObjectId.isValid(propertyId) ? new Types.ObjectId(propertyId) : undefined,
+      propertySlug: propertySlug ? String(propertySlug).trim() : undefined,
+      propertyName: propertyName ? String(propertyName).trim() : undefined,
+      budget: budget ? Number(budget) : undefined,
+      budgetMax: budgetMax ? Number(budgetMax) : undefined,
+      preferredArea: preferredArea ? String(preferredArea).trim() : undefined,
+      address: address ? String(address).trim() : undefined,
+    });
+    const populated = await Lead.findById(lead._id).populate('assignedTo', 'name email').populate('propertyId', 'name slug').lean();
+    res.status(201).json({ success: true, data: populated, message: 'Lead created successfully' });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create lead',
+      error: err instanceof Error ? err.message : 'Unknown error',
+    });
+  }
+};
 
 /** Get all leads – filters, search, pagination, sort. */
 export const getLeads = async (req: Request, res: Response): Promise<void> => {
@@ -115,7 +150,7 @@ export const updateLead = async (req: Request, res: Response): Promise<void> => 
       res.status(400).json({ success: false, message: 'Invalid lead ID' });
       return;
     }
-    const { status, notes, assignedTo, priority, nextFollowUpAt } = req.body;
+    const { status, notes, assignedTo, priority, nextFollowUpAt, budget, budgetMax, preferredArea, address, lastContactMode, contactHistory } = req.body;
     const update: Record<string, unknown> = {};
     if (status && ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost', 'nurturing'].includes(status)) {
       update.status = status as LeadStatus;
@@ -130,6 +165,14 @@ export const updateLead = async (req: Request, res: Response): Promise<void> => 
     if (nextFollowUpAt !== undefined) {
       update.nextFollowUpAt = nextFollowUpAt ? new Date(nextFollowUpAt) : null;
     }
+    if (budget !== undefined) update.budget = budget ? Number(budget) : null;
+    if (budgetMax !== undefined) update.budgetMax = budgetMax ? Number(budgetMax) : null;
+    if (preferredArea !== undefined) update.preferredArea = preferredArea ? String(preferredArea).trim() : null;
+    if (address !== undefined) update.address = address ? String(address).trim() : null;
+    if (lastContactMode && ['call', 'email', 'whatsapp', 'meeting', 'site_visit', 'other'].includes(lastContactMode)) {
+      update.lastContactMode = lastContactMode;
+    }
+    if (contactHistory !== undefined) update.contactHistory = contactHistory ? String(contactHistory).trim() : null;
 
     const lead = await Lead.findByIdAndUpdate(id, { $set: update }, { new: true })
       .populate('assignedTo', 'name email')
@@ -286,6 +329,119 @@ export const getFollowUpAlerts = async (req: Request, res: Response): Promise<vo
     res.status(500).json({
       success: false,
       message: 'Failed to fetch follow-up alerts',
+      error: err instanceof Error ? err.message : 'Unknown error',
+    });
+  }
+};
+
+/** Full reports for leads: KPIs, by status/source, over time, follow-up performance. */
+export const getLeadReports = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const period = (req.query.period as string) || '30d';
+    const endDate = new Date();
+    let startDate: Date;
+    if (period === '7d') startDate = subDays(endDate, 7);
+    else if (period === '90d') startDate = subDays(endDate, 90);
+    else startDate = subDays(endDate, 30);
+
+    const dateFilter = { createdAt: { $gte: startDate, $lte: endDate } };
+
+    const [
+      leadsInPeriod,
+      byStatusAgg,
+      bySourceAgg,
+      leadsByDayAgg,
+      totalLeadsAllTime,
+      followUpsInPeriod,
+      followUpsCompleted,
+      followUpsOverdue,
+      topPropertiesAgg,
+    ] = await Promise.all([
+      Lead.find(dateFilter).lean(),
+      Lead.aggregate([
+        { $match: dateFilter },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+      Lead.aggregate([
+        { $match: dateFilter },
+        { $group: { _id: '$source', count: { $sum: 1 } } },
+      ]),
+      Lead.aggregate([
+        { $match: dateFilter },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ]),
+      Lead.countDocuments(),
+      LeadFollowUp.countDocuments({ createdAt: { $gte: startDate, $lte: endDate } }),
+      LeadFollowUp.countDocuments({ createdAt: { $gte: startDate, $lte: endDate }, completedAt: { $ne: null } }),
+      LeadFollowUp.countDocuments({ completedAt: null, dueAt: { $lt: endDate } }),
+      Lead.aggregate([
+        { $match: dateFilter },
+        { $match: { propertyName: { $exists: true, $nin: [null, ''] } } },
+        { $group: { _id: '$propertyName', slug: { $first: '$propertySlug' }, count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 10 },
+      ]),
+    ]);
+
+    const totalInPeriod = leadsInPeriod.length;
+    const won = leadsInPeriod.filter((l: any) => l.status === 'won').length;
+    const lost = leadsInPeriod.filter((l: any) => l.status === 'lost').length;
+    const conversionRate = totalInPeriod > 0 ? Number(((won / totalInPeriod) * 100).toFixed(2)) : 0;
+
+    const byStatus: Record<string, number> = {};
+    byStatusAgg.forEach((s: { _id: string; count: number }) => {
+      byStatus[s._id] = s.count;
+    });
+    const bySource: Record<string, number> = {};
+    bySourceAgg.forEach((s: { _id: string; count: number }) => {
+      bySource[s._id] = s.count;
+    });
+
+    const leadsOverTime = leadsByDayAgg.map((d: { _id: string; count: number }) => ({
+      date: d._id,
+      leads: d.count,
+    }));
+
+    const followUpTotal = followUpsInPeriod;
+    const followUpCompleted = followUpsCompleted;
+    const followUpCompletionRate = followUpTotal > 0 ? Number(((followUpCompleted / followUpTotal) * 100).toFixed(2)) : 0;
+
+    const topProperties = topPropertiesAgg.map((p: { _id: string; slug?: string; count: number }) => ({
+      propertyName: p._id,
+      propertySlug: p.slug || '',
+      leads: p.count,
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        period,
+        dateRange: { start: startDate.toISOString(), end: endDate.toISOString() },
+        summary: {
+          totalLeads: totalLeadsAllTime,
+          leadsInPeriod: totalInPeriod,
+          won,
+          lost,
+          conversionRate,
+          activeLeads: totalInPeriod - won - lost,
+        },
+        byStatus,
+        bySource,
+        leadsOverTime,
+        followUp: {
+          total: followUpTotal,
+          completed: followUpCompleted,
+          overdue: followUpsOverdue,
+          completionRate: followUpCompletionRate,
+        },
+        topPropertiesByLeads: topProperties,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch lead reports',
       error: err instanceof Error ? err.message : 'Unknown error',
     });
   }
